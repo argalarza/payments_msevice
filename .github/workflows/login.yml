@@ -1,0 +1,77 @@
+name: 🚀 Deploy Payments MS to EC2 (test)
+
+on:
+  push:
+    branches:
+      - test
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: agente47/payments-service
+      CONTAINER_NAME: payments-service
+
+    steps:
+      - name: ⬇️ Checkout repo
+        uses: actions/checkout@v3
+
+      - name: 🔐 Docker Login
+        uses: docker/login-action@v2
+        with:
+          username: agente47
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🏗 Build & Push to Docker Hub
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+
+      - name: 🚀 Deploy via SSH to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Instalar Docker si no está presente
+            if ! command -v docker &> /dev/null; then
+              echo "Docker no está instalado. Instalando Docker..."
+              sudo apt update
+              sudo apt install -y docker.io
+              sudo systemctl enable docker
+              sudo usermod -aG docker $USER
+            fi
+
+            # Eliminar contenedor previo si existe
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            docker rm ${{ env.CONTAINER_NAME }} || true
+
+            # Descargar la nueva imagen
+            docker pull ${{ env.IMAGE_NAME }}:latest
+
+            # Ejecutar contenedor con persistencia y variables
+            docker run -d --name ${{ env.CONTAINER_NAME }} \
+              --restart always \
+              -p 5050:5050 \
+              -e PORT=5050 \
+              -e SQL_SERVER_HOST=3.216.251.1 \
+              -e SQL_SERVER_PORT=1433 \
+              -e SQL_SERVER_SNI_HOST=3.216.251.1 \
+              -e SQL_SERVER_USER=serious \
+              -e SQL_SERVER_PASSWORD=Andy1234* \
+              -e SQL_SERVER_DATABASE=payments_db \
+              -e JWT_SECRET=mysecretkey1234 \
+              -e STRIPE_SECRET_KEY=sk_test_51RkXbvFMAadEqCesZUc5eNKyGNtsx97G5JBtlm31NPt3c2kdGyDWBzVGCmpabqMfPLUMYNR6z18WXAmz0MSBltT500VLTZ3h7b \
+              -e STRIPE_WEBHOOK_SECRET=whsec_6ca0dd79303cdfb62434c04d8bfecaf8489d5cbc5e27de78e1a04ef6b4621e54 \
+              -e EMAIL_HOST=smtp.gmail.com \
+              -e EMAIL_PORT=587 \
+              -e EMAIL_USER=andyricardog234@gmail.com \
+              -e EMAIL_PASS="spde rekd coxh aecp" \
+              -e ORDERS_HOST=13.223.17.187 \
+              -e ORDERS_PORT=5001 \
+              ${{ env.IMAGE_NAME }}:latest
