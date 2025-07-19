@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  payments-service:
+    build: .
+    container_name: payments-service
+    ports:
+      - "5050:5050"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  # 🔁 Opcional: Stripe CLI para reenviar eventos al webhook local
+  stripe-cli:
+    image: stripe/stripe-cli
+    container_name: stripe-forwarder
+    entrypoint: >
+      sh -c "stripe listen --forward-to payments-service:5050/webhook"
+    environment:
+      - STRIPE_API_KEY=sk_test_51RkXbvFMAadEqCesZUc5eNKyGNtsx97G5JBtlm31NPt3c2kdGyDWBzVGCmpabqMfPLUMYNR6z18WXAmz0MSBltT500VLTZ3h7b
+    depends_on:
+      - payments-service
