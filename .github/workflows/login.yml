@@ -38,23 +38,39 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Instalar Docker si no está presente
+            echo "🔍 Verificando Docker..."
+
             if ! command -v docker &> /dev/null; then
-              echo "Docker no está instalado. Instalando Docker..."
-              sudo apt update
-              sudo apt install -y docker.io
+              echo "🐳 Docker no está instalado. Instalando..."
+
+              if command -v apt &> /dev/null; then
+                sudo apt update
+                sudo apt install -y docker.io
+              elif command -v yum &> /dev/null; then
+                sudo yum install -y docker
+              elif command -v dnf &> /dev/null; then
+                sudo dnf install -y docker
+              else
+                echo "❌ No se pudo detectar el gestor de paquetes."
+                exit 1
+              fi
+
               sudo systemctl enable docker
+              sudo systemctl start docker
               sudo usermod -aG docker $USER
+              sleep 3
+            else
+              echo "✅ Docker ya está instalado."
             fi
 
-            # Eliminar contenedor previo si existe
+            echo "♻️ Limpiando contenedor previo..."
             docker stop ${{ env.CONTAINER_NAME }} || true
             docker rm ${{ env.CONTAINER_NAME }} || true
 
-            # Descargar la nueva imagen
+            echo "⬇️ Descargando imagen nueva..."
             docker pull ${{ env.IMAGE_NAME }}:latest
 
-            # Ejecutar contenedor con persistencia y variables
+            echo "🚀 Ejecutando contenedor..."
             docker run -d --name ${{ env.CONTAINER_NAME }} \
               --restart always \
               -p 5050:5050 \
@@ -75,3 +91,5 @@ jobs:
               -e ORDERS_HOST=13.223.17.187 \
               -e ORDERS_PORT=5001 \
               ${{ env.IMAGE_NAME }}:latest
+
+            echo "✅ Despliegue completado correctamente ✅"
